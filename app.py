@@ -28,11 +28,25 @@ from plotly.subplots import make_subplots
 def fetch_ohlc_data(ticker="AAPL", period="2y", interval="1h"):
     df = yf.download(ticker, period=period, interval=interval,
                      progress=False, auto_adjust=True)
-    df.dropna(inplace=True)
-    df.index = pd.to_datetime(df.index)
+    # Flatten MultiIndex columns (newer yfinance versions return (field, ticker))
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
-    df = df[["Open", "High", "Low", "Close", "Volume"]]
+    # Deduplicate columns that may appear after flattening
+    df = df.loc[:, ~df.columns.duplicated()]
+    df.index = pd.to_datetime(df.index)
+    # Remove timezone info to avoid comparison issues
+    if hasattr(df.index, "tz") and df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
+    df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+    # Ensure all values are plain floats (not Series/nested objects)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col].squeeze(), errors="coerce")
+    df.dropna(inplace=True)
+    if len(df) < 2:
+        raise ValueError(
+            f"Not enough data returned for '{ticker}' with period='{period}'. "
+            "Try a longer period or check the ticker symbol."
+        )
     return df
 
 
@@ -578,8 +592,15 @@ with tab_data:
 
     df = st.session_state.df_raw
     if df is not None:
-        latest  = float(df["Close"].iloc[-1])
-        prev    = float(df["Close"].iloc[-2])
+        # Defensive squeeze: ensure columns are plain 1-D Series
+        for _col in df.columns:
+            df[_col] = pd.to_numeric(df[_col].squeeze(), errors="coerce")
+        try:
+            latest  = float(df["Close"].iloc[-1])
+            prev    = float(df["Close"].iloc[-2])
+        except (IndexError, ValueError, TypeError) as _e:
+            st.error(f"Could not read price data: {_e}. Please re-fetch the data.")
+            st.stop()
         pct_chg = (latest - prev) / prev * 100
         vol_avg = float(df["Volume"].tail(24).mean())
         rsi_now = float(df["RSI"].iloc[-1])
