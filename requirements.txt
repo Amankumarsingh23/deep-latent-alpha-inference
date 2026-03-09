@@ -1,7 +1,6 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.0+cpu
-torchvision==0.17.0+cpu
 streamlit>=1.32.0
+torch>=2.9.0
+torchvision>=0.20.0
 yfinance>=0.2.46
 pandas>=2.0.0
 numpy>=1.26.0
