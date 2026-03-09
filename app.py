@@ -6,7 +6,11 @@ architectures with GADF image encoding on hourly OHLC data.
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
+
+# ── Robust path fix for Streamlit Cloud ─────────────────────────────────────
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 import time
 import numpy as np
